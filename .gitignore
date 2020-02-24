@@ -1,0 +1,17 @@
+# Thumbnails
+._*
+
+# Windows default autosave extension
+*.asv
+
+# OSX / *nix default autosave extension
+*.m~
+
+# Any binary files
+*.mat
+
+# .DS_Store file
+*.DS_Store
+
+# output from script
+POA
