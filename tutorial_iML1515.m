@@ -65,7 +65,7 @@ ilvE = {'PPNDH'};  % essential for phenylalanine biosynthesis
 
 % Reactions essential for exporting amino acids:
 
-argO = {'ARGt3pp'};  % Evidence for an arginine exporter encoded by yggA (argO
+argO = {'ARGt3pp'};  % Evidence for an arginine exporter encoded by yggA (argO)
 lysO = {'LYSt3pp'};  % YbjE (LysO) mediates export of L-lysine
 yjeH = {'METt3pp'};  % YjeH is a novel L-methionine and BCAA exporter in E. coli
 yddG = {'PHEt2rpp'; 'PHEtipp'};  % YddG from E. coli promotes export of aromatic amino acids
@@ -473,6 +473,7 @@ lgLabel = {'{\itEc1 }';'{\itEc2 }';'{\itEc3 }';'{\itEc4 }'};
 col = [ 95 135 255; 255 0 0; 0 235 0;; 235 135 255 ]/255;  % color
 f = figure;
 x = [grComV(:); flipud(grComV(:))];
+hold on
 for j = 1:4
     y = [fvaComMin(j, :), fliplr(fvaComMax(j, :))];
     p(j, 1) = plot(x(~isnan(y)), y(~isnan(y)), 'LineWidth', 2);
