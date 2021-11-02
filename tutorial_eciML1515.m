@@ -23,7 +23,17 @@ initCobraToolbox(false) % false, as we don't want to update
 % select the IBM ILOG Cplex solver
 changeCobraSolver('ibm_cplex', 'LP');
 
-%% Model Construction
+%% Model Initialization
+
+% NOTE: You may also choose to run this analysis with the latest updated
+% version of the iML1515 ecModel, which is continuously updated on the
+% SysBio ecModels container as done so in the commented section below.
+
+% load ecModel and protein pool-constrained model
+%url = 'https://raw.githubusercontent.com/SysBioChalmers/ecModels/master/eciML1515/model/eciML1515.xml';
+%urlwrite(url, 'models/eciML1515.xml');
+%url = 'https://raw.githubusercontent.com/SysBioChalmers/ecModels/master/eciML1515/model/eciML1515_batch.xml';
+%urlwrite(url, 'models/eciML1515_batch.xml');
 
 % load the ec-iML1515 in the COBRA toolbox
 modelEco = readCbModel(['models' filesep 'eciML1515_batch.xml']);
@@ -289,9 +299,12 @@ options.algorithm = 1;  % use the default algorithm (simple guessing for bounds,
 % for the required total biomass (default 1 gdw). Here the algorithm used is the 
 % simple guessing for find upper and lower bounds (Iter 1 to 4 in the output) 
 % followed by Matlab |fzero| (starting from the line '|Func-count|') to locate 
-% the root. The maximum growth rate calculated is 0.73599 /h, stored in |result.GRmax|._ 
+% the root. The maximum growth rate calculated is stored in |result.GRmax|._ 
 % 
 % The biomass for each organism (in gdw) is given by_ |_result.BM|:
+% In direct comparison with the use of the classical iML1515 GEM in 
+% SteadyCom, we can already observe a stark difference in predicted
+% relative abundances of each species at the max community growth rate.
 
 for jSp = 1:4
     fprintf('X_%s:  %.6f\n', EcCom.infoCom.spAbbr{jSp}, result.BM(jSp));
@@ -377,7 +390,7 @@ end
 
 grComV = result.GRmax * options.optGRpercent / 100;  % vector of growth rates tested
 lgLabel = {'{\itEc1 }';'{\itEc2 }';'{\itEc3 }';'{\itEc4 }'};
-col = [ 95 135 255; 255 0 0; 0 235 0;; 235 135 255 ]/255;  % color
+col = [ 95 135 255; 255 0 0; 0 235 0; 235 135 255 ]/255;  % color
 f = figure;
 % SteadyCom
 subplot(2, 1, 1);
@@ -400,6 +413,7 @@ lg = legend(lgLabel);
 lg.Box = 'off';
 yl(1) = ylabel('Relative abundance');
 xl(1) = xlabel('Community growth rate (h^{-1})');
+
 % FBA
 grFBAV = grFBA * optGRpercentFBA / 100;
 x = [grFBAV(:); flipud(grFBAV(:))];
@@ -428,6 +442,11 @@ ax(1).Position = [0.1 0.6 0.5 0.32];
 ax(2).Position = [0.1 0.1 0.5 0.32];
 lg.Position = [0.65 0.65 0.1 0.27];
 
+% Once we have plotted the results of SteadyComFVA and joint FBA-FVA, we
+% can observe how the variability has been reduced significantly as a
+% result of the intrinsic constraints introduced solely by the use of a
+% protein pool and enzymatic constraints.
+
 %% Analyze Pairwise Relationship Using SteadyComPOA
 % Now we would like to see at a given growth rate, how the abundance of an organism 
 % influences the abundance of another organism. We check this by iteratively fixing 
@@ -454,7 +473,7 @@ a = 0.001*(1000.^((0:14)/14));
 options.Nstep = sort([a (1-a)]);
 
 [POAtable, fluxRange, Stat, GRvector] = SteadyComPOA(EcCom, options);
-%% 
+
 % POAtable is a _n_-by-_n_ cell if there are _n_ targets in |options.rxnNameList|. 
 % |POAtable{i, i}| is a _Nstep_-by-1-by-_Ngr_ matrix where _Nstep _is the number 
 % of intermediate steps detemined by |options.Nstep| and _Ngr _is the number of 
@@ -472,7 +491,8 @@ options.Nstep = sort([a (1-a)]);
 % the folder 'POA' starting with the name 'EcCom', followed by 'GRxxxx' denoting 
 % the growth rate at which the analysis is performed.
 % 
-% Plot the results (see also Figure 3 in ref. [1]):
+%% Plot the results 
+% (see also Figure 3 in ref. [1]):
 
 nSp = 4;
 spLab = {'{\it Ec1 }';'{\it Ec2 }';'{\it Ec3 }';'{\it Ec4 }'};
@@ -519,5 +539,9 @@ for j = 1:nSp
         end
     end
 end
- 
 
+% While the same pairwise behavior can be observed when we have plotted the
+% results of the pareto optimality analysis, we clearly see a shift in the
+% overall feasible abundances of certain species over others. For example,
+% in each pairwise comparison, Ec1 demonstrably has a higher feasible
+% abundance across the board.

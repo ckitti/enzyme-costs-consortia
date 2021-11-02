@@ -22,7 +22,7 @@ initCobraToolbox(0) % false, as we don't want to update
 % select the IBM ILOG Cplex solver
 changeCobraSolver('ibm_cplex', 'LP');
 
-%% Model Construction
+%% Model Initialization
 
 % load the iML1515 model on the COBRA toolbox
 modelEco = readCbModel(['models' filesep 'iML1515.xml']);
@@ -470,7 +470,7 @@ lg.Position = [0.65 0.65 0.1 0.27];
 % vector of growth rates tested
 grComV = result.GRmax * options.optGRpercent / 100;  
 lgLabel = {'{\itEc1 }';'{\itEc2 }';'{\itEc3 }';'{\itEc4 }'};
-col = [ 95 135 255; 255 0 0; 0 235 0;; 235 135 255 ]/255;  % color
+col = [ 95 135 255; 255 0 0; 0 235 0; 235 135 255 ]/255;  % color
 f = figure;
 x = [grComV(:); flipud(grComV(:))];
 hold on
