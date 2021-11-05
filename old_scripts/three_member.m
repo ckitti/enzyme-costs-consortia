@@ -53,13 +53,14 @@ pheA = modelEco.rxns(rxnIdx);  % essential for phenylalanine biosynthesis (gene 
 
 %%
 % methionine auxotroph
-Ec1 = changeRxnBounds(modelEco, metA, 0, 'b');
+%Ec1 = changeRxnBounds(modelEco, [argH], 0, 'b');
+Ec1 = changeRxnBounds(modelEco, [metA; lysA], 0, 'b');
 
 % phenylalaline auxotroph
+Ec2 = changeRxnBounds(modelEco, [metA; ilvE1], 0, 'b');
 
-Ec2 = changeRxnBounds(modelEco, argH, 0, 'b');
-
-%Ec2 = changeRxnBounds(modelEco, lysA, 0, 'b');
+% lysine auxotroph
+Ec3 = changeRxnBounds(modelEco, [lysA; ilvE1], 0, 'b');
 
 %Ec2 = changeRxnBounds(modelEco, ilvE1, 0, 'b');
 %Ec2 = changeRxnBounds(modelEco, ilvE2, 0, 'b');
@@ -127,9 +128,9 @@ lbEx = modelEco.lb(rxnEx);
 % Create a community model with the four E. coli tagged as 'Ec1', 'Ec2', 
 % 'Ec3', 'Ec4' respectively by calling |createMultipleSpeciesModel|.
 
-nameTagsModel = {'Ec1'; 'Ec2'};
+nameTagsModel = {'Ec1'; 'Ec2'; 'Ec3'};
 
-EcCom = createMultipleSpeciesModel({Ec1; Ec2}, nameTagsModel);
+EcCom = createMultipleSpeciesModel({Ec1; Ec2; Ec3}, nameTagsModel);
 EcCom.csense = char('E' * ones(1,numel(EcCom.mets)))';
  
 % Retrieve the names and ids for organism/community exchange reactions/metabolites 
@@ -165,24 +166,56 @@ EcCom.lb(EcCom.indCom.EXcom(:,1))   = lbEx(id);
 EcCom.ub(EcCom.indCom.EXcom(:,1))   = 1e5;
 
 % assign organism-specific uptake bounds
-EcCom.lb(EcCom.indCom.EXsp)         = repmat(lbEx(id), 1, 2);
+EcCom.lb(EcCom.indCom.EXsp)         = repmat(lbEx(id), 1, 3);
 
 % allow production of anything for each member
 exRate = 1;
+rxns = {'IEX_met__L[u]tr', 'IEX_lys__L[u]tr', 'IEX_arg__L[u]tr', 'IEX_phe__L[u]tr'};
+rxnIdx = find(contains(EcCom.rxns, rxns));
+
+%EcCom = changeRxnBounds(EcCom, EcCom.rxns(rxnIdx), -exRate, 'l');
 
 % Ec1
 EcCom = changeRxnBounds(EcCom, {'Ec1IEX_met__L[u]tr'}, -exRate, 'l');
+EcCom = changeRxnBounds(EcCom, {'Ec1IEX_lys__L[u]tr'}, -exRate, 'l');
+%EcCom = changeRxnBounds(EcCom, {'Ec1IEX_arg__L[u]tr'}, -exRate, 'l');
 
 % Ec2
-%EcCom = changeRxnBounds(EcCom, {'Ec2IEX_phe__L[u]tr'}, -exRate, 'l');
+EcCom = changeRxnBounds(EcCom, {'Ec2IEX_phe__L[u]tr'}, -exRate, 'l');
 %EcCom = changeRxnBounds(EcCom, {'Ec2IEX_lys__L[u]tr'}, -exRate, 'l');
-EcCom = changeRxnBounds(EcCom, {'Ec2IEX_arg__L[u]tr'}, -exRate, 'l');
+%EcCom = changeRxnBounds(EcCom, {'Ec2IEX_arg__L[u]tr'}, -exRate, 'l');
+EcCom = changeRxnBounds(EcCom, {'Ec2IEX_met__L[u]tr'}, -exRate, 'l');
+%EcCom = changeRxnBounds(EcCom, {'Ec2IEX_lys__L[u]tr'}, -exRate, 'l');
+
+% Ec3
+%EcCom = changeRxnBounds(EcCom, {'Ec3IEX_arg__L[u]tr'}, -exRate, 'l');
+EcCom = changeRxnBounds(EcCom, {'Ec3IEX_lys__L[u]tr'}, -exRate, 'l');
+EcCom = changeRxnBounds(EcCom, {'Ec3IEX_phe__L[u]tr'}, -exRate, 'l');
 
 % allow production of anything for each member
 EcCom.ub(EcCom.indCom.EXsp(:)) = 1000;
 
 % print the community uptake bounds to check
 printUptakeBoundCom(EcCom, 1);
+
+%% set abundance of first pair member for SteadyCom
+
+pcX = 0.0:0.05:1
+GR = [];
+
+options             = struct();
+options.GRguess     = 0.5;  % initial guess for max. HR in the bisection
+options.GRtol       = 1e-6;  % tolerance for final GR
+options.algorithm   = 1;  
+% use the default algorithm (simple guessing for bounds, then matlab fzero)
+
+for i = 1:length(pcX)
+    options.BMcon = [1 0 0 ;0 1 1];
+    options.BMrhs = [pcX(i); 1-pcX(i)];
+    options.BMcsense = ['E', 'E'];
+    [sol, result] =     SteadyCom(EcCom,options);
+    GR = [GR result.GRmax];
+end
 
 %% Finding the max growth rate using SteadyCom
 
@@ -195,7 +228,7 @@ options.algorithm   = 1;
 
 [sol, result] =     SteadyCom(EcCom,options);
 
-for jSp = 1:2
+for jSp = 1:3
     fprintf('X_%s:  %.6f\n', EcCom.infoCom.spAbbr{jSp}, result.BM(jSp));
 end
 disp(result);
@@ -224,7 +257,7 @@ n = size(EcCom.S, 2);  % number of reactions in the model
 % j-th organism. Alternatively, use {'X_j'} for biomass variable of the 
 % j-th organism or {'X_Ec1'} for Ec1 (the abbreviation in EcCom.infoCom.spAbbr)
 
-options.rxnNameList = {'X_Ec1'; 'X_Ec2'};
+options.rxnNameList = {'X_Ec1'; 'X_Ec2'; 'X_Ec3'};
 
 % define the growth rates we would like to perform FVA for
 options.optGRpercent = [89:0.2:99, 99.1:0.1:100];
@@ -236,12 +269,12 @@ options.optGRpercent = [89:0.2:99, 99.1:0.1:100];
 
 % vector of growth rates tested
 grComV = options.optGRpercent / 100; % * result.GRmax;
-lgLabel = {'{\itEc1 }';'{\itEc2 }'};
-col = [ 95 135 255; 255 0 0]/255;  % color
+lgLabel = {'{\itEc1 }';'{\itEc2 }';'{\itEc3 }'};
+col = [ 95 135 255; 255 0 0; 0 235 0 ]/255;  % color
 f = figure;
 x = [grComV(:); flipud(grComV(:))];
 hold on
-for j = 1:2
+for j = 1:3
     y = [fvaComMin(j, :), fliplr(fvaComMax(j, :))];
     p(j, 1) = plot(x(~isnan(y)), y(~isnan(y)), 'LineWidth', 2);
     p(j, 1).Color = col(j, :);
@@ -261,6 +294,10 @@ xl(1) = xlabel('Community growth rate (h^{-1})');
 
 %% Analyze Pairwise Relationship Using SteadyComPOA
 
+if exist('POAtmp')
+    rmdir('POAtmp','s');
+end
+
 options.optGRpercent = [99.9 99 90 75 50 0];  % analyze at these percentages of max. growth rate
 
 a = 0.001*(1000.^((0:14)/14));
@@ -268,10 +305,10 @@ options.Nstep = sort([a (1-a)]);
 
 [POAtable, fluxRange, Stat, GRvector] = SteadyComPOA(EcCom, options);
 
-%% Plot the results (see also Figure 3 in ref. [1]):
+% Plot the results (see also Figure 3 in ref. [1]):
 
-nSp = 2;
-spLab = {'{\it Ec1 }';'{\it Ec2 }'};
+nSp = 3;
+spLab = {'{\it Ec1 }';'{\it Ec2 }'; '{\it Ec3}'};
 mark = {'A', 'B', 'D', 'C', 'E', 'F'};
 nPlot = 0;
 for j = 1:nSp
@@ -315,4 +352,3 @@ for j = 1:nSp
         end
     end
 end
-

@@ -1,14 +1,22 @@
+%% Two-member species analysis with iML1515 (old script)
+% This old script is retained due to some discrepancies in the output
+% between this script and the compiled script `two_member_consortia`. The
+% pipeline is much more manual in this case and is only maintained for
+% transparency.
+
 clear;
 
 %initCobraToolbox(0)
 changeCobraSolver('ibm_cplex', 'LP');
 
-%
-modelEco = readCbModel(['models' filesep 'iML1515.xml']);
+%% Model initialization
+
+% load the model
+modelEco = readCbModel(['..' filesep 'models' filesep 'iML1515.xml']);
 
 % These boundaries are based on the original study
 modelEco = changeRxnBounds(modelEco, 'EX_glc__D_e', -8, 'l');
-modelEco = changeRxnBounds(modelEco, 'EX_o2_e', -18.5, 'l');
+modelEco = changeRxnBounds(modelEco, 'EX_o2_e', -8, 'l');
 modelEco = changeRxnBounds(modelEco, 'EX_cbl1_e', -0.01, 'l');
 
 % These bounds were added to iML1515; set them to 0 as well
@@ -16,7 +24,7 @@ modelEco = changeRxnBounds(modelEco, 'EX_slnt_e', 0, 'l');
 modelEco = changeRxnBounds(modelEco, 'EX_sel_e', 0, 'l');
 
 % Nickel uptake is essential in iML1515, so we will leave the bounds as is
-% modelEco = changeRxnBounds(modelEco, 'EX_ni2_e', -1000, 'l');
+modelEco = changeRxnBounds(modelEco, 'EX_ni2_e', -1000, 'l');
 
 %% Check model structure for consistency
 
@@ -32,39 +40,22 @@ end
 
 %% Defining the gene-associated reactions for knockout
 
-% modelEco = addReaction(modelEco,{'METt3pp',''},'met__L[c] + h[c] => met__L[p] + h[p]');
-
 % Reactions to be knocked out for amino acid auxotrophy:
 
 argH = {'ARGSL'};  % essential for arginine biosynthesis
 lysA = {'DAPDC'};  % essential for lysine biosynthesis
 metA = {'HSST'};  % essential for methionine biosynthesis
-ilvE1 = {'PPNDH'};  % essential for phenylalanine biosynthesis (gene b3770)
+ilvE = {'PPNDH'};  % essential for phenylalanine biosynthesis (gene b3770)
+%leuB = {'IPMD'}; % essential for leucine biosynthesis
+%trpC = {'IGPS' 'PRAIi'}; % essential for serine biosynthesis
 
-% find(contains(modelEco.genes, 'b3770'));
-% 18
-rxnIdx = find(contains(modelEco.rules, 'x(18)'));
-ilvE2 = modelEco.rxns(rxnIdx);  % essential for phenylalanine biosynthesis (gene b3770)
-
-% find(contains(modelEco.genes, 'b2599'));
-% 87
-rxnIdx = find(contains(modelEco.rules, 'x(87)'));
-pheA = modelEco.rxns(rxnIdx);  % essential for phenylalanine biosynthesis (gene b2599)
-
-%%
 % methionine auxotroph
-Ec1 = changeRxnBounds(modelEco, [argH], 0, 'b');
-%Ec1 = changeRxnBounds(modelEco, [argH; lysA], 0, 'b');
+Ec1 = changeRxnBounds(modelEco, metA, 0, 'b');
 
-% phenylalaline auxotroph
-Ec2 = changeRxnBounds(modelEco, [argH; ilvE1], 0, 'b');
-
-% lysine auxotroph
-Ec3 = changeRxnBounds(modelEco, [lysA; ilvE1], 0, 'b');
-
-%Ec2 = changeRxnBounds(modelEco, ilvE1, 0, 'b');
-%Ec2 = changeRxnBounds(modelEco, ilvE2, 0, 'b');
-%Ec2 = changeRxnBounds(modelEco, pheA, 0, 'b');
+% the other auxotroph will be one of the other three remaining
+Ec2 = changeRxnBounds(modelEco, argH, 0, 'b');
+%Ec2 = changeRxnBounds(modelEco, lysA, 0, 'b');
+%Ec2 = changeRxnBounds(modelEco, ilvE, 0, 'b');
 
 %% Defining the community model boundaries
 
@@ -81,7 +72,7 @@ rxnExAll    = find(sum(modelEco.S ~= 0, 1) == 1);
 [rxnEx, ~]  = find(modelEco.S(metEx, rxnExAll)');  % need to be in the same order as metEx
 rxnEx       = rxnExAll(rxnEx);
 
-%% Additional step for iML1515 update
+% Additional step for iML1515 update
 
 % The following steps are to address a number of new extracellular
 % metabolites that have been added since the first release of iAF1260 used
@@ -101,7 +92,7 @@ extMetsExc = strrep(extMetsExc, ' <==>', '');
 
 % List all extracellular metabolites and filter out unaccounted ones 
 extMets = modelEco.mets(metEx);
-extMets = setdiff(extMets,extMetsExc)
+extMets = setdiff(extMets,extMetsExc);
 
 % Uncomment the following to see which reactions the unaccounted 
 % extracellular metabolites are involved in:
@@ -128,9 +119,9 @@ lbEx = modelEco.lb(rxnEx);
 % Create a community model with the four E. coli tagged as 'Ec1', 'Ec2', 
 % 'Ec3', 'Ec4' respectively by calling |createMultipleSpeciesModel|.
 
-nameTagsModel = {'Ec1'; 'Ec2'; 'Ec3'};
+nameTagsModel = {'Ec1'; 'Ec2'};
 
-EcCom = createMultipleSpeciesModel({Ec1; Ec2; Ec3}, nameTagsModel);
+EcCom = createMultipleSpeciesModel({Ec1; Ec2}, nameTagsModel);
 EcCom.csense = char('E' * ones(1,numel(EcCom.mets)))';
  
 % Retrieve the names and ids for organism/community exchange reactions/metabolites 
@@ -166,31 +157,18 @@ EcCom.lb(EcCom.indCom.EXcom(:,1))   = lbEx(id);
 EcCom.ub(EcCom.indCom.EXcom(:,1))   = 1e5;
 
 % assign organism-specific uptake bounds
-EcCom.lb(EcCom.indCom.EXsp)         = repmat(lbEx(id), 1, 3);
+EcCom.lb(EcCom.indCom.EXsp)         = repmat(lbEx(id), 1, 2);
 
 % allow production of anything for each member
 exRate = 1;
-rxns = {'IEX_met__L[u]tr', 'IEX_lys__L[u]tr', 'IEX_arg__L[u]tr', 'IEX_phe__L[u]tr'};
-rxnIdx = find(contains(EcCom.rxns, rxns));
 
-%EcCom = changeRxnBounds(EcCom, EcCom.rxns(rxnIdx), -exRate, 'l');
+% Ec1 - allow uptake of methionine
+EcCom = changeRxnBounds(EcCom, {'Ec1IEX_met__L[u]tr'}, -exRate, 'l');
 
-% Ec1
-%EcCom = changeRxnBounds(EcCom, {'Ec1IEX_met__L[u]tr'}, -exRate, 'l');
-EcCom = changeRxnBounds(EcCom, {'Ec1IEX_lys__L[u]tr'}, -exRate, 'l');
-EcCom = changeRxnBounds(EcCom, {'Ec1IEX_arg__L[u]tr'}, -exRate, 'l');
-
-% Ec2
+% Ec2 - allow uptake of the other amino acid
 EcCom = changeRxnBounds(EcCom, {'Ec2IEX_phe__L[u]tr'}, -exRate, 'l');
 %EcCom = changeRxnBounds(EcCom, {'Ec2IEX_lys__L[u]tr'}, -exRate, 'l');
-EcCom = changeRxnBounds(EcCom, {'Ec2IEX_arg__L[u]tr'}, -exRate, 'l');
-%EcCom = changeRxnBounds(EcCom, {'Ec2IEX_met__L[u]tr'}, -exRate, 'l');
-%EcCom = changeRxnBounds(EcCom, {'Ec2IEX_lys__L[u]tr'}, -exRate, 'l');
-
-% Ec3
-%EcCom = changeRxnBounds(EcCom, {'Ec3IEX_arg__L[u]tr'}, -exRate, 'l');
-EcCom = changeRxnBounds(EcCom, {'Ec3IEX_lys__L[u]tr'}, -exRate, 'l');
-EcCom = changeRxnBounds(EcCom, {'Ec3IEX_phe__L[u]tr'}, -exRate, 'l');
+%EcCom = changeRxnBounds(EcCom, {'Ec2IEX_arg__L[u]tr'}, -exRate, 'l');
 
 % allow production of anything for each member
 EcCom.ub(EcCom.indCom.EXsp(:)) = 1000;
@@ -200,7 +178,6 @@ printUptakeBoundCom(EcCom, 1);
 
 %% Finding the max growth rate using SteadyCom
 
-
 options             = struct();
 options.GRguess     = 0.5;  % initial guess for max. HR in the bisection
 options.GRtol       = 1e-6;  % tolerance for final GR
@@ -209,7 +186,7 @@ options.algorithm   = 1;
 
 [sol, result] =     SteadyCom(EcCom,options);
 
-for jSp = 1:3
+for jSp = 1:2
     fprintf('X_%s:  %.6f\n', EcCom.infoCom.spAbbr{jSp}, result.BM(jSp));
 end
 disp(result);
@@ -222,6 +199,32 @@ for j = 0 : size(iter, 1)
         fprintf('%5d\t%16.6f\t%21.6f\t%11.6f\t%18.6e\t%d\n', iter(j,:))
     end
 end
+
+%% Setting abundance of first pair member for SteadyCom
+
+% Here we can assess the influence of relative compositions on the growth
+% rate by fixing the abundance of the first member (if you are using the
+% SteadyCom tutorial strains, that is the methionine auxotroph) and by
+% association the abundance of the second strain. This is simple in the
+% case of two members but can become awry with three or more.
+
+pcX = 0.0:0.05:1;
+GR = [];
+
+options             = struct();
+options.GRguess     = 0.5;  % initial guess for max. HR in the bisection
+options.GRtol       = 1e-6;  % tolerance for final GR
+options.algorithm   = 1;  
+% use the default algorithm (simple guessing for bounds, then matlab fzero)
+
+for i = 1:length(pcX)
+    options.BMcon = [1 0; 0 1];
+    options.BMrhs = [pcX(i); 1-pcX(i)];
+    options.BMcsense = ['E', 'E'];
+    [sol, result] =     SteadyCom(commEcModel{1,2},options);
+    GR = [GR result.GRmax];
+end
+
 
 %% Analyze flux variability with SteadyComFVA
 
@@ -238,7 +241,7 @@ n = size(EcCom.S, 2);  % number of reactions in the model
 % j-th organism. Alternatively, use {'X_j'} for biomass variable of the 
 % j-th organism or {'X_Ec1'} for Ec1 (the abbreviation in EcCom.infoCom.spAbbr)
 
-options.rxnNameList = {'X_Ec1'; 'X_Ec2'; 'X_Ec3'};
+options.rxnNameList = {'X_Ec1'; 'X_Ec2'};
 
 % define the growth rates we would like to perform FVA for
 options.optGRpercent = [89:0.2:99, 99.1:0.1:100];
@@ -250,12 +253,12 @@ options.optGRpercent = [89:0.2:99, 99.1:0.1:100];
 
 % vector of growth rates tested
 grComV = options.optGRpercent / 100; % * result.GRmax;
-lgLabel = {'{\itEc1 }';'{\itEc2 }';'{\itEc3 }'};
-col = [ 95 135 255; 255 0 0; 0 235 0 ]/255;  % color
+lgLabel = {'{\itEc1 }';'{\itEc2 }'};
+col = [ 95 135 255; 255 0 0]/255;  % color
 f = figure;
 x = [grComV(:); flipud(grComV(:))];
 hold on
-for j = 1:3
+for j = 1:2
     y = [fvaComMin(j, :), fliplr(fvaComMax(j, :))];
     p(j, 1) = plot(x(~isnan(y)), y(~isnan(y)), 'LineWidth', 2);
     p(j, 1).Color = col(j, :);
@@ -275,10 +278,6 @@ xl(1) = xlabel('Community growth rate (h^{-1})');
 
 %% Analyze Pairwise Relationship Using SteadyComPOA
 
-if exist('POAtmp')
-    rmdir('POAtmp','s');
-end
-
 options.optGRpercent = [99.9 99 90 75 50 0];  % analyze at these percentages of max. growth rate
 
 a = 0.001*(1000.^((0:14)/14));
@@ -288,8 +287,8 @@ options.Nstep = sort([a (1-a)]);
 
 % Plot the results (see also Figure 3 in ref. [1]):
 
-nSp = 3;
-spLab = {'{\it Ec1 }';'{\it Ec2 }'; '{\it Ec3}'};
+nSp = 2;
+spLab = {'{\it Ec1 }';'{\it Ec2 }'};
 mark = {'A', 'B', 'D', 'C', 'E', 'F'};
 nPlot = 0;
 for j = 1:nSp
@@ -333,3 +332,39 @@ for j = 1:nSp
         end
     end
 end
+
+%% some miscellaneous scripts used for analysis
+% some old scripts are kept here for inspecting the model structure and
+% tracking specific fluxes
+
+%% get fluxes for inter-species exchange reactions
+%fluxVal = result.flux(model.indCom.EXsp);
+
+%model = setParam(model, 'var', model.rxns(model.indCom.EXsp), fluxVal, 10);
+
+%% get fluxes for community exchange reactions
+
+% probably don't have to fix this as we cannot control what comes into the
+% direct environment but only measure uptake by species
+%fluxVal = result.flux(model.indCom.EXcom);
+%model = setParam(model, 'b', model.rxns(model.indCom.EXcom), fluxVal);
+
+%% set EX for glucose, oxygen, carbon dioxide and water
+setBoundsFor = {'IEX_glc__D[u]tr', 'IEX_o2[u]tr', 'IEX_co2[u]tr', 'IEX_h2o[u]tr', 'IEX_pi[u]tr'};
+
+for i = 1:length(setBoundsFor)
+    idx = find(contains(model.rxns, setBoundsFor(i) ));
+    fluxVal = result.flux(idx)
+    model = setParam(model, 'var', model.rxns(idx), fluxVal, 10000);
+end
+
+%% get fluxes for biomass reactions
+fluxVal = result.flux(model.indCom.spBm);
+% all species must at least have non-zero growth
+model = setParam(model, 'lb', model.rxns(model.indCom.spBm), 0.01 * fluxVal);
+% set bounds from FBA result (%GRmax: 0.6957)
+model = setParam(model, 'ub', model.rxns(model.indCom.spBm), fluxVal);
+%% pool exchange
+model = addMetabolite(model, 'comBm');
+model.S(end, model.indCom.spBm) = 1;
+model = addExchangeRxn(model, 'comBm');
